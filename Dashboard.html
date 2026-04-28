@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Eko Bharat MIS Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f2f5;color:#1a1d23;min-height:100vh}
+.hidden{display:none!important}
+#loadbar{position:fixed;top:0;left:0;height:3px;background:#3b82f6;transition:width .3s;z-index:9999;width:0}
+#errbanner{display:none;background:#fef2f2;border:2px solid #ef4444;color:#7f1d1d;padding:14px 28px;font-size:13px;font-weight:600;position:sticky;top:61px;z-index:80;line-height:1.6}
+#errbanner button{margin-left:16px;background:#ef4444;color:#fff;border:none;border-radius:5px;padding:4px 12px;cursor:pointer;font-size:12px}
+header{background:#0f172a;color:#fff;padding:12px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.header-left{display:flex;align-items:center;gap:12px}
+.logo{width:36px;height:36px;border-radius:8px;flex-shrink:0;background:linear-gradient(135deg,#3b82f6,#6366f1);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px}
+.header-title{font-size:15px;font-weight:700}
+.header-sub{font-size:11px;color:#64748b;margin-top:1px}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.last-refreshed{font-size:11px;color:#475569}
+.btn-refresh{background:#3b82f6;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
+.btn-refresh:hover{background:#2563eb}
+.btn-refresh:disabled{background:#334155;cursor:not-allowed}
+.spin-icon{display:inline-block;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tab-nav{background:#fff;border-bottom:1px solid #e2e6ea;padding:0 28px;display:flex;align-items:center;gap:4px;position:sticky;top:61px;z-index:90;overflow-x:auto}
+.tab-btn{padding:13px 16px;border:none;background:transparent;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap}
+.tab-btn:hover{color:#3b82f6}
+.tab-btn.active{color:#3b82f6;border-bottom-color:#3b82f6}
+.tab-spacer{flex:1}
+.period-select{font-size:12px;font-weight:600;color:#374151;border:1.5px solid #e2e6ea;border-radius:6px;padding:5px 10px;background:#fff;cursor:pointer;outline:none}
+main{padding:20px 24px;max-width:1440px;margin:0 auto}
+.kpi-row{display:flex;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.kpi-card{flex:1;min-width:160px;max-width:240px;background:#fff;border-radius:10px;padding:16px 18px;border:1px solid #e2e6ea;box-shadow:0 1px 3px rgba(0,0,0,.05);position:relative;overflow:hidden}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;border-radius:10px 0 0 10px}
+.kpi-blue::before{background:#3b82f6}.kpi-green::before{background:#10b981}.kpi-amber::before{background:#f59e0b}.kpi-red::before{background:#ef4444}.kpi-purple::before{background:#8b5cf6}
+.kpi-label{font-size:10px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em}
+.kpi-value{font-size:20px;font-weight:800;color:#111827;margin:5px 0 3px}
+.kpi-value.neg{color:#ef4444}
+.kpi-sub{font-size:11px;color:#9ca3af}
+.kpi-bar{height:3px;background:#f3f4f6;border-radius:99px;margin-top:10px;overflow:hidden}
+.kpi-bar-fill{height:100%;border-radius:99px;transition:width .4s}
+.chart-row{display:grid;gap:16px;margin-bottom:16px}
+.chart-6-4{grid-template-columns:3fr 2fr}
+.chart-5-5{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.chart-6-4,.chart-5-5{grid-template-columns:1fr}}
+.chart-card{background:#fff;border-radius:10px;padding:18px 20px;border:1px solid #e2e6ea;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.chart-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.chart-title{font-size:13px;font-weight:700;color:#111827}
+.chart-sub{font-size:11px;color:#9ca3af;margin-top:2px}
+.badge{font-size:11px;font-weight:600;padding:2px 9px;border-radius:99px}
+.badge-blue{background:#dbeafe;color:#1d4ed8}.badge-green{background:#dcfce7;color:#15803d}.badge-purple{background:#ede9fe;color:#6d28d9}.badge-gray{background:#f3f4f6;color:#374151}
+canvas{max-height:230px}
+canvas.tall{max-height:260px}
+.toggle-btn{font-size:11px;font-weight:600;color:#3b82f6;background:#eff6ff;border:1px solid #bfdbfe;border-radius:5px;padding:4px 10px;cursor:pointer}
+.metrics-table{width:100%;border-collapse:collapse;font-size:11px}
+.metrics-table th{font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;font-weight:700;padding:6px 8px;border-bottom:1px solid #f0f0f0;text-align:right;white-space:nowrap;background:#fafafa}
+.metrics-table th:first-child,.metrics-table th:nth-child(2){text-align:left}
+.metrics-table td{padding:5px 8px;text-align:right;border-bottom:1px solid #fafafa}
+.metrics-table td:first-child{text-align:left;font-size:10px;color:#9ca3af}
+.metrics-table td:nth-child(2){text-align:left;font-weight:600;color:#374151}
+.metrics-table tr.section-row td{background:#f8fafc;font-weight:700;font-size:11px;color:#3b82f6;padding:8px 8px 4px;text-transform:uppercase;letter-spacing:.05em}
+.t-neg{color:#ef4444!important;font-weight:600}.t-pos{color:#10b981!important;font-weight:600}.t-null{color:#d1d5db}.t-trend{font-size:14px;text-align:center!important}
+#notification{position:fixed;bottom:24px;right:24px;z-index:999;background:#1e293b;color:#f1f5f9;font-size:13px;font-weight:600;padding:12px 20px;border-radius:8px;border-left:3px solid #10b981;box-shadow:0 4px 16px rgba(0,0,0,.3);transform:translateY(80px);transition:transform .3s;opacity:0}
+#notification.show{transform:translateY(0);opacity:1}
+</style>
+</head>
+<body>
+
+<div id="loadbar"></div>
+<div id="errbanner"></div>
+
+<header>
+  <div class="header-left">
+    <div class="logo">E</div>
+    <div>
+      <div class="header-title">Eko Bharat MIS Dashboard</div>
+      <div class="header-sub" id="header-period">Loading…</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="last-refreshed" id="last-refreshed"></span>
+    <button class="btn-refresh" id="btn-refresh" onclick="refreshDashboard()">↻ Refresh from MIS</button>
+  </div>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('consolidated',this)">📊 Consolidated</button>
+  <button class="tab-btn" onclick="switchTab('eps',this)">⚡ EPS</button>
+  <button class="tab-btn" onclick="switchTab('eloka',this)">🔷 ELOKA</button>
+  <button class="tab-btn" onclick="switchTab('kiosk',this)">🏦 Kiosk Banking</button>
+  <button class="tab-btn" onclick="switchTab('enterprise',this)">🏢 Enterprise</button>
+  <div class="tab-spacer"></div>
+  <select class="period-select" id="period-select" onchange="filterPeriod(this.value)">
+    <option value="all">All Periods</option>
+    <option value="fy2526">FY 25-26 (Apr'25 onwards)</option>
+    <option value="fy2425">FY 24-25</option>
+  </select>
+</nav>
+
+<main id="dash-main">
+  <div class="kpi-row" id="kpi-row"></div>
+  <div class="chart-row chart-6-4">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title" id="c1-title">Revenue Trend</div><div class="chart-sub">Monthly · ₹ Crores</div></div>
+        <span class="badge badge-blue" id="c1-badge"></span>
+      </div>
+      <canvas id="c1" class="tall"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title" id="c2-title">Revenue Mix</div><div class="chart-sub" id="c2-sub">Period share · ₹ Cr</div></div>
+      </div>
+      <canvas id="c2" style="max-height:220px"></canvas>
+    </div>
+  </div>
+  <div class="chart-row chart-5-5">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title">GTV Trend</div><div class="chart-sub">Monthly · ₹ Crores</div></div>
+        <span class="badge badge-purple" id="c3-badge"></span>
+      </div>
+      <canvas id="c3"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title">Transaction Volume</div><div class="chart-sub">Monthly · Thousands</div></div>
+        <span class="badge badge-green" id="c4-badge"></span>
+      </div>
+      <canvas id="c4"></canvas>
+    </div>
+  </div>
+  <div class="chart-row chart-5-5">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title" id="c5-title">Partner & User Metrics</div><div class="chart-sub">Monthly counts</div></div>
+      </div>
+      <canvas id="c5"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div><div class="chart-title" id="c6-title">Margin Trends</div><div class="chart-sub">Monthly · %</div></div>
+      </div>
+      <canvas id="c6"></canvas>
+    </div>
+  </div>
+  <div class="chart-card" style="margin-bottom:32px">
+    <div class="chart-header">
+      <div><div class="chart-title">All Metrics — Auto-populated from MIS</div><div class="chart-sub" id="metrics-count">Fetching…</div></div>
+      <button class="toggle-btn" id="toggle-btn" onclick="toggleTable()">▼ Expand</button>
+    </div>
+    <div id="table-wrap" class="hidden" style="overflow-x:auto">
+      <table class="metrics-table" id="metrics-table"></table>
+    </div>
+  </div>
+</main>
+
+<div id="notification"></div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const SHEET_MAP = {
+    consolidated: 'Consolidated Eko',
+    eps:          'Eko Platform Services',
+    eloka:        'ELOKA',
+    kiosk:        'Kiosk Banking Solutions',
+    enterprise:   'Enterprise',
+};
+const SEG_COLOR = { consolidated:'#6366f1', eps:'#3b82f6', eloka:'#8b5cf6', kiosk:'#10b981', enterprise:'#f59e0b' };
+const TAB_LABEL = { consolidated:'Consolidated', eps:'EPS', eloka:'ELOKA', kiosk:'Kiosk Banking', enterprise:'Enterprise' };
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentTab = 'consolidated';
+let currentPeriod = 'all';
+let sheetData = {};
+let charts = {};
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const kill = id => { if (charts[id]) { charts[id].destroy(); delete charts[id]; } };
+const fmtCr  = v => v == null ? '—' : (v < 0 ? '−' : '') + '₹' + Math.abs(v/1e7).toFixed(2) + ' Cr';
+const fmtNum = v => v == null ? '—' : new Intl.NumberFormat('en-IN').format(Math.round(v));
+const fmtPct = v => v == null ? '—' : (v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%';
+const fmtK   = v => v == null ? '—' : (v >= 1e7 ? (v/1e7).toFixed(1)+'Cr' : v >= 1e5 ? (v/1e5).toFixed(1)+'L' : v >= 1000 ? (v/1000).toFixed(1)+'K' : Math.round(v).toString());
+
+function notify(msg, color='#10b981') {
+    const n = $('notification');
+    n.textContent = msg;
+    n.style.borderLeftColor = color;
+    n.classList.add('show');
+    setTimeout(() => n.classList.remove('show'), 3000);
+}
+function showError(msg) {
+    const b = $('errbanner');
+    b.innerHTML = '⚠ ' + msg + ' <button onclick="this.parentElement.style.display=\'none\'">✕</button>';
+    b.style.display = 'block';
+}
+function hideError() { $('errbanner').style.display = 'none'; }
+function setLoadBar(pct) {
+    $('loadbar').style.width = pct + '%';
+    if (pct >= 100) setTimeout(() => { $('loadbar').style.width = '0'; }, 500);
+}
+function updateRefreshedStamp() {
+    const now = new Date();
+    $('last-refreshed').textContent = 'Updated ' + now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+}
+function switchTab(key, btn) {
+    currentTab = key;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    if (sheetData[key]) renderDashboard();
+}
+function filterPeriod(val) {
+    currentPeriod = val;
+    if (sheetData[currentTab]) renderDashboard();
+}
+function toggleTable() {
+    const wrap = $('table-wrap'), btn = $('toggle-btn');
+    const open = !wrap.classList.contains('hidden');
+    wrap.classList.toggle('hidden', open);
+    btn.textContent = open ? '▼ Expand' : '▲ Collapse';
+}
+
+// ─── DATA LOAD via Google Apps Script ─────────────────────────────────────────
+function loadAllSheets() {
+    hideError();
+    const btn = $('btn-refresh');
+    btn.innerHTML = '<span class="spin-icon">↻</span> Loading…';
+    btn.disabled = true;
+    setLoadBar(20);
+    $('header-period').textContent = 'Fetching from MIS spreadsheet…';
+
+    google.script.run
+        .withSuccessHandler(function(data) {
+            setLoadBar(80);
+            let errors = [];
+            let loaded = 0;
+            for (const key in data) {
+                const result = data[key];
+                if (result.ok && result.rows && result.rows.length) {
+                    sheetData[key] = new SheetParser(result.rows);
+                    loaded++;
+                    console.log('[MIS]', key, ':', result.rows.length, 'rows,',
+                        Object.keys(sheetData[key].metrics).length, 'metrics');
+                } else {
+                    errors.push(SHEET_MAP[key] + ': ' + (result.error || 'no data'));
+                    console.warn('[MIS]', key, 'error:', result.error);
+                }
+            }
+            setLoadBar(100);
+            btn.innerHTML = '↻ Refresh from MIS';
+            btn.disabled = false;
+            if (loaded === 0) {
+                showError('No data loaded. ' + errors.join('; '));
+                return;
+            }
+            if (errors.length) showError('Some sheets failed: ' + errors.join('; '));
+            renderDashboard();
+            updateRefreshedStamp();
+            notify('Data refreshed ✓');
+        })
+        .withFailureHandler(function(err) {
+            setLoadBar(0);
+            btn.innerHTML = '↻ Refresh from MIS';
+            btn.disabled = false;
+            const msg = err.message || String(err);
+            showError('Server error: ' + msg + '. Try refreshing the page.');
+            console.error('[MIS] getAllSheetsData failed:', msg);
+        })
+        .getAllSheetsData();
+}
+
+function refreshDashboard() { loadAllSheets(); }
+
+// ─── SHEET PARSER ─────────────────────────────────────────────────────────────
+class SheetParser {
+    constructor(rows) {
+        this.rows = rows || [];
+        this.metrics = {};
+        this.allMonths = [];
+        this.monthLabel = {};
+        this._parse();
+    }
+    _parse() {
+        if (!this.rows.length) return;
+        let headerIdx = -1, best = 0;
+        for (let i = 0; i < Math.min(this.rows.length, 25); i++) {
+            const cnt = (this.rows[i]||[]).filter(c => this._isMonth(c)).length;
+            if (cnt > best) { best = cnt; headerIdx = i; }
+        }
+        if (headerIdx < 0 || best < 2) return;
+        const hRow = this.rows[headerIdx];
+        const col2mk = {};
+        hRow.forEach((cell, ci) => {
+            const mk = this._toMonthKey(cell);
+            if (mk) { col2mk[ci] = mk; if (!this.monthLabel[mk]) this.monthLabel[mk] = this._fmtLabel(cell); }
+        });
+        const dataCols = Object.keys(col2mk).map(Number);
+        if (!dataCols.length) return;
+        let section = '';
+        for (let ri = headerIdx + 1; ri < this.rows.length; ri++) {
+            const row = this.rows[ri] || [];
+            const rawName = String(row[1] || row[0] || '').trim();
+            if (!rawName || rawName === '0') continue;
+            if (this._isMonth(rawName) || /^Q[1-4]/i.test(rawName)) continue;
+            const numVals = dataCols.filter(ci => this._parseV(row[ci]) !== null).length;
+            if (numVals < 2) {
+                if (rawName.length > 1 && !rawName.match(/^\d/)) section = rawName;
+                continue;
+            }
+            const values = {};
+            dataCols.forEach(ci => { const v = this._parseV(row[ci]); if (v !== null) values[col2mk[ci]] = v; });
+            // Use section+name as key to prevent overwrites when same row name appears in different sections
+            const sSlug = section.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_');
+            const nSlug = rawName.toLowerCase().replace(/[^a-z0-9]/g,'_').replace(/_+/g,'_');
+            const key = sSlug ? sSlug + '__' + nSlug : nSlug;
+            if (!this.metrics[key]) {
+                this.metrics[key] = { name: rawName, section, values, unit: this._unit(rawName) };
+            } else {
+                // Extend with new month data only — don't overwrite existing values
+                for (const [mk, v] of Object.entries(values)) {
+                    if (!(mk in this.metrics[key].values)) this.metrics[key].values[mk] = v;
+                }
+            }
+        }
+        const all = new Set();
+        Object.values(this.metrics).forEach(m => Object.keys(m.values).forEach(k => all.add(k)));
+        this.allMonths = [...all].sort((a,b) => {
+            const [ay,am] = a.split('-').map(Number), [by,bm] = b.split('-').map(Number);
+            return ay !== by ? ay-by : am-bm;
+        });
+    }
+    _isMonth(c) {
+        if (!c) return false;
+        return /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)['\-\s]?\d{2,4}$/i.test(String(c).trim());
+    }
+    _toMonthKey(c) {
+        if (!c) return null;
+        const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12,january:1,february:2,march:3,april:4,june:6,july:7,august:8,september:9,october:10,november:11,december:12};
+        const m = String(c).trim().match(/^([A-Za-z]+)['\-\s]?(\d{2,4})$/);
+        if (!m) return null;
+        const mo = MON[m[1].toLowerCase()]; if (!mo) return null;
+        const yr = parseInt(m[2]); const y = yr < 100 ? (yr < 50 ? 2000+yr : 1900+yr) : yr;
+        return `${y}-${String(mo).padStart(2,'0')}`;
+    }
+    _fmtLabel(c) {
+        const m = String(c||'').trim().match(/^([A-Za-z]{3})[A-Za-z]*['\-\s]?(\d{2,4})$/);
+        if (m) { const yr = m[2].length===4 ? m[2].slice(2) : m[2]; return `${m[1]}'${yr}`; }
+        return String(c||'').trim();
+    }
+    _parseV(v) {
+        if (v == null || v === '' || v === '-' || v === 'NA') return null;
+        let s = String(v).replace(/[,₹\s%]/g,'');
+        if (!s || s.includes('#') || s === '-') return null;
+        if (s.startsWith('(') && s.endsWith(')')) s = '-' + s.slice(1,-1);
+        const n = parseFloat(s);
+        return isNaN(n) ? null : n;
+    }
+    _unit(name) {
+        const n = name.toLowerCase();
+        if (n.includes('%')||n.includes('margin')||n.includes(' rate')||n.includes('growth')) return '%';
+        if (n.includes('gtv')||n.includes('revenue')||n.includes('profit')||n.includes('cost')||n.includes('income')||n.includes('value')) return '₹';
+        return '#';
+    }
+    find(...names) {
+        for (const name of names.flat()) {
+            const nl = name.toLowerCase();
+            // Exact name match first
+            const exact = Object.values(this.metrics).find(m => m.name.toLowerCase() === nl);
+            if (exact) return exact;
+            // Partial name match fallback
+            const partial = Object.values(this.metrics).find(m =>
+                m.name.toLowerCase().includes(nl) || nl.includes(m.name.toLowerCase()));
+            if (partial) return partial;
+        }
+        return null;
+    }
+    valsFor(months, ...names) { const m = this.find(...names); if (!m) return months.map(()=>null); return months.map(k => m.values[k]??null); }
+    sum(months, ...names) { const v = this.valsFor(months,...names).filter(x=>x!==null); return v.length ? v.reduce((a,b)=>a+b,0) : null; }
+    last(months, ...names) { const v = this.valsFor(months,...names); for (let i=v.length-1;i>=0;i--) if (v[i]!==null) return v[i]; return null; }
+    getMonths(period) {
+        return this.allMonths.filter(mk => {
+            const [y,mo] = mk.split('-').map(Number);
+            if (period==='fy2526') return (y===2025&&mo>=4)||(y===2026&&mo<=3);
+            if (period==='fy2425') return (y===2024&&mo>=4)||(y===2025&&mo<=3);
+            return true;
+        });
+    }
+    getLabels(months) { return months.map(mk => this.monthLabel[mk]||mk); }
+}
+
+// ─── FINANCIAL HELPERS ────────────────────────────────────────────────────────
+const GTV_NAMES = ['GTV','Total GTV','Total Eloka Values','Total Values','Total Volumes','Total Volume','Total EPS Partner Volumes','Total Partner Volumes','Gross Transaction Value','Transaction Value','Total Transaction Value'];
+function gtvSeries(p,m) {
+    // 1. Named lookup
+    const named = p.valsFor(m,...GTV_NAMES);
+    if (named.some(v=>v!==null)) return named;
+    // 2. Fallback: any metric whose name contains "total" inside a section containing "value"
+    //    Covers: "Total Eloka Values" (ELOKA tab), Kiosk Values section totals, etc.
+    const fallback = Object.values(p.metrics).find(metric =>
+        metric.name.toLowerCase().includes('total') &&
+        metric.section.toLowerCase().includes('value'));
+    if (fallback) return m.map(mk => fallback.values[mk]??null);
+    return m.map(()=>null);
+}
+function gtvSum(p,m) { const s=gtvSeries(p,m).filter(v=>v!==null); return s.length?s.reduce((a,b)=>a+b,0):null; }
+function bestRevenueMetric(parser, months) {
+    const mths = months&&months.length ? months : parser.allMonths;
+    let best=null, bestSum=0;
+    for (const m of Object.values(parser.metrics)) {
+        if (!m.name.toLowerCase().includes('revenue')) continue;
+        const s = mths.reduce((a,mk)=>a+(m.values[mk]||0),0);
+        if (s>bestSum) { best=m; bestSum=s; }
+    }
+    return best;
+}
+function revSum(p,m) {
+    const ex=p.metrics['total_revenue'];
+    if (ex) { const s=m.reduce((a,mk)=>a+(ex.values[mk]||0),0); if(s>10000) return s; }
+    const bm=bestRevenueMetric(p,m); if(!bm) return null;
+    const s=m.reduce((a,mk)=>a+(bm.values[mk]||0),0); return s>0?s:null;
+}
+function revSeries(p,m) {
+    const ex=p.metrics['total_revenue'];
+    if (ex){ const s=m.reduce((a,mk)=>a+(ex.values[mk]||0),0); if(s>10000) return m.map(mk=>ex.values[mk]??null); }
+    const bm=bestRevenueMetric(p,m); if(!bm) return m.map(()=>null);
+    return m.map(mk=>bm.values[mk]??null);
+}
+function grossMarginSeries(p,m) {
+    const pct=Object.values(p.metrics).find(x=>{ const n=x.name.toLowerCase(); return (n.includes('gross margin')||n.includes('gross profit'))&&(n.includes('%')||x.unit==='%'); });
+    if(pct) return m.map(mk=>pct.values[mk]??null); return m.map(()=>null);
+}
+function grossMarginLast(p,m) { const s=grossMarginSeries(p,m); for(let i=s.length-1;i>=0;i--) if(s[i]!=null) return s[i]; return null; }
+function ebitdaMarginSeries(p,m) {
+    const pct=Object.values(p.metrics).find(x=>{ const n=x.name.toLowerCase(); return n.includes('ebitda')&&(n.includes('%')||x.unit==='%'); });
+    if(pct) return m.map(mk=>pct.values[mk]??null);
+    const eM=Object.values(p.metrics).find(x=>/^ebitda$/i.test(x.name.trim()));
+    const rM=bestRevenueMetric(p,m); if(!eM||!rM) return m.map(()=>null);
+    return m.map(mk=>{ const e=eM.values[mk],r=rM.values[mk]; return (e!=null&&r!=null&&Math.abs(r)>5000)?(e/r)*100:null; });
+}
+function ebitdaMarginLast(p,m) { const s=ebitdaMarginSeries(p,m); for(let i=s.length-1;i>=0;i--) if(s[i]!=null) return s[i]; return null; }
+
+// ─── RENDER ORCHESTRATOR ──────────────────────────────────────────────────────
+function renderDashboard() {
+    const parser = sheetData[currentTab]; if (!parser) return;
+    const months = parser.getMonths(currentPeriod);
+    const labels = parser.getLabels(months);
+    renderKPIs(parser, months);
+    renderC1(parser, months, labels);
+    renderC2(parser, months);
+    renderC3(parser, months, labels);
+    renderC4(parser, months, labels);
+    renderC5(parser, months, labels);
+    renderC6(parser, months, labels);
+    renderTable(parser, months, labels);
+    $('header-period').textContent = `${TAB_LABEL[currentTab]} · ${months.length} months · ${labels[0]||''} – ${labels[labels.length-1]||''}`;
+}
+
+// ─── KPI CARDS ────────────────────────────────────────────────────────────────
+function renderKPIs(parser, months) {
+    const kpis = [], tab = currentTab;
+    if (tab === 'consolidated') {
+        let rev=0, gtv=0, txn=0;
+        Object.keys(sheetData).forEach(k => {
+            if (k==='consolidated') return;
+            const s=sheetData[k]; if(!s) return;
+            const vm = s.getMonths(currentPeriod);
+            const rv=revSum(s,vm); if(rv) rev+=rv;
+            const gv=gtvSum(s,vm); if(gv) gtv+=gv;
+            const tv=s.sum(vm,'Transactions','No. of Transaction','Total No. of Transactions','Total EPS Nr. of Transactions','Transaction count'); if(tv) txn+=tv;
+        });
+        if(!rev) rev=parser.sum(months,'Total Revenue','Revenue');
+        kpis.push({label:'Total Revenue',value:fmtCr(rev||null),sub:`${months.length} months`,color:'blue',pct:75,bar:'#3b82f6'});
+        kpis.push({label:'Total GTV',value:fmtCr(gtv||null),sub:'Transaction value',color:'purple',pct:65,bar:'#8b5cf6'});
+        kpis.push({label:'Total Transactions',value:fmtK(txn||null),sub:'Period total',color:'green',pct:60,bar:'#10b981'});
+        const eb=ebitdaMarginLast(parser,months);
+        if(eb!==null) kpis.push({label:'EBITDA Margin',value:fmtPct(eb),sub:'Latest month',color:eb<0?'red':'amber',pct:Math.min(100,Math.abs(eb)),bar:eb<0?'#ef4444':'#f59e0b'});
+    } else {
+        const rev=revSum(parser,months), gtv=gtvSum(parser,months);
+        const gm=grossMarginLast(parser,months), em=ebitdaMarginLast(parser,months);
+        const mtp=parser.last(months,'MTP','MTU','Monthly Transacting Partners','Monthly Transacting Users','Transacting user (including network)');
+        const churn=parser.last(months,'Churn Rate');
+        if(rev!==null) kpis.push({label:'Revenue (Period)',value:fmtCr(rev),sub:`${months.length} months`,color:'blue',pct:70,bar:'#3b82f6'});
+        if(gtv!==null) kpis.push({label:'GTV (Period)',value:fmtCr(gtv),sub:'Transaction value',color:'purple',pct:60,bar:'#8b5cf6'});
+        if(mtp!==null) kpis.push({label:tab==='eloka'?'Active Users (MTU)':'Active Partners (MTP)',value:fmtNum(mtp),sub:'Latest month',color:'green',pct:Math.min(100,mtp/15),bar:'#10b981'});
+        if(gm!==null) kpis.push({label:'Gross Margin',value:fmtPct(gm),sub:'Latest month',color:'green',pct:Math.min(100,gm),bar:'#10b981'});
+        if(em!==null) kpis.push({label:'EBITDA Margin',value:fmtPct(em),sub:'Latest month',color:em<0?'red':'amber',pct:Math.min(100,Math.abs(em)),bar:em<0?'#ef4444':'#f59e0b'});
+        if(churn!==null&&!kpis.find(k=>k.label.includes('EBITDA'))) kpis.push({label:'Churn Rate',value:fmtPct(churn),sub:'Latest month',color:churn>20?'red':'amber',pct:Math.min(100,churn),bar:churn>20?'#ef4444':'#f59e0b'});
+    }
+    $('kpi-row').innerHTML = kpis.slice(0,5).map(k=>`
+    <div class="kpi-card kpi-${k.color}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value${(k.value.startsWith('−')||k.value.startsWith('-'))?' neg':''}">${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" style="width:${k.pct}%;background:${k.bar}"></div></div>
+    </div>`).join('');
+}
+
+// ─── CHART 1: Revenue Trend ───────────────────────────────────────────────────
+function renderC1(parser, months, labels) {
+    kill('c1');
+    const tab = currentTab;
+    let datasets = [];
+    if (tab === 'consolidated') {
+        ['eps','eloka','kiosk','enterprise'].forEach(k => {
+            const seg=sheetData[k]; if(!seg) return;
+            const rm=bestRevenueMetric(seg,months);
+            const vals=months.map(mk=>rm&&rm.values[mk]!=null?rm.values[mk]/1e7:null);
+            if(vals.some(v=>v!==null)) datasets.push({label:TAB_LABEL[k],data:vals,backgroundColor:SEG_COLOR[k],borderRadius:3,stack:'r'});
+        });
+        $('c1-title').textContent='Revenue by Segment';
+        $('c1-badge').textContent='Stacked'; $('c1-badge').className='badge badge-blue';
+    } else {
+        const total=revSeries(parser,months).map(v=>v?v/1e7:null);
+        const ot=parser.valsFor(months,'One Time Revenue','One-Time Revenue').map(v=>v?v/1e7:null);
+        const rec=parser.valsFor(months,'Recurring Revenue').map(v=>v?v/1e7:null);
+        datasets.push({label:'Total Revenue',data:total,backgroundColor:'#3b82f6',borderRadius:3});
+        if(ot.some(v=>v!==null)) datasets.push({label:'One-Time',data:ot,backgroundColor:'#93c5fd',borderRadius:3});
+        if(rec.some(v=>v!==null)) datasets.push({label:'Recurring',data:rec,backgroundColor:'#10b981',borderRadius:3});
+        $('c1-title').textContent='Revenue Trend';
+        $('c1-badge').textContent=TAB_LABEL[tab]; $('c1-badge').className='badge badge-blue';
+    }
+    if (!datasets.length) return;
+    charts['c1'] = new Chart($('c1'), {
+        type:'bar', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:d=>`₹${d.raw?.toFixed(2)} Cr`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{ticks:{callback:v=>'₹'+v.toFixed(1)+' Cr',font:{size:9}},grid:{color:'#f3f4f6'}}}}
+    });
+}
+
+// ─── CHART 2: Revenue Mix (Doughnut) ─────────────────────────────────────────
+function renderC2(parser, months) {
+    kill('c2');
+    const tab = currentTab;
+    let labels2=[], data2=[], colors=[];
+    if (tab === 'consolidated') {
+        ['eps','eloka','kiosk','enterprise'].forEach(k => {
+            const seg=sheetData[k]; if(!seg) return;
+            const v=revSum(seg,seg.getMonths(currentPeriod));
+            if(v&&v>0) { labels2.push(TAB_LABEL[k]); data2.push(v/1e7); colors.push(SEG_COLOR[k]); }
+        });
+        $('c2-title').textContent='Revenue Mix'; $('c2-sub').textContent='Segment share · ₹ Cr';
+    } else {
+        const ot=parser.sum(months,'One Time Revenue','One-Time Revenue');
+        const rec=parser.sum(months,'Recurring Revenue');
+        const tot=revSum(parser,months)||0;
+        if(ot&&ot>0){ labels2.push('One-Time'); data2.push(ot/1e7); colors.push('#3b82f6'); }
+        if(rec&&rec>0){ labels2.push('Recurring'); data2.push(rec/1e7); colors.push('#10b981'); }
+        if(!ot&&!rec&&tot>0){ labels2.push('Revenue'); data2.push(tot/1e7); colors.push('#3b82f6'); }
+        $('c2-title').textContent='Revenue Mix'; $('c2-sub').textContent='One-time vs Recurring';
+    }
+    if (!data2.length) return;
+    charts['c2'] = new Chart($('c2'), {
+        type:'doughnut', data:{labels:labels2,datasets:[{data:data2,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},
+        options:{responsive:true,maintainAspectRatio:true,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:d=>`${d.label}: ₹${d.raw?.toFixed(2)} Cr`}}}}
+    });
+}
+
+// ─── CHART 3: GTV Trend ───────────────────────────────────────────────────────
+function renderC3(parser, months, labels) {
+    kill('c3');
+    let datasets = [];
+    if (currentTab === 'consolidated') {
+        ['eps','eloka','kiosk','enterprise'].forEach(k => {
+            const seg=sheetData[k]; if(!seg) return;
+            const vals=gtvSeries(seg,months).map(v=>v?v/1e7:null);
+            if(vals.some(v=>v!==null)) datasets.push({label:TAB_LABEL[k],data:vals,backgroundColor:SEG_COLOR[k],borderRadius:3,stack:'g'});
+        });
+        $('c3-badge').textContent='Stacked'; $('c3-badge').className='badge badge-purple';
+    } else {
+        const vals=gtvSeries(parser,months).map(v=>v?v/1e7:null);
+        if(vals.some(v=>v!==null)) datasets.push({label:'GTV',data:vals,backgroundColor:'#8b5cf6',borderRadius:3});
+        $('c3-badge').textContent=TAB_LABEL[currentTab]; $('c3-badge').className='badge badge-purple';
+    }
+    if (!datasets.length) return;
+    charts['c3'] = new Chart($('c3'), {
+        type:'bar', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:d=>`₹${d.raw?.toFixed(2)} Cr`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{ticks:{callback:v=>'₹'+v.toFixed(1)+' Cr',font:{size:9}},grid:{color:'#f3f4f6'}}}}
+    });
+}
+
+// ─── CHART 4: Transaction Volume ──────────────────────────────────────────────
+function renderC4(parser, months, labels) {
+    kill('c4');
+    const TXN_NAMES = ['Transactions','Total Transactions','Total Eloka Nr. of Transactions','No. of Transaction','Total No. of Transactions','Total EPS Nr. of Transactions','Transaction count','Nr of Transactions'];
+    let datasets = [];
+    if (currentTab === 'consolidated') {
+        ['eps','eloka','kiosk','enterprise'].forEach(k => {
+            const seg=sheetData[k]; if(!seg) return;
+            const vals=seg.valsFor(months,...TXN_NAMES).map(v=>v?v/1000:null);
+            if(vals.some(v=>v!==null)) datasets.push({label:TAB_LABEL[k],data:vals,backgroundColor:SEG_COLOR[k],borderRadius:3,stack:'t'});
+        });
+        $('c4-badge').textContent='Stacked'; $('c4-badge').className='badge badge-green';
+    } else {
+        const vals=parser.valsFor(months,...TXN_NAMES).map(v=>v?v/1000:null);
+        if(vals.some(v=>v!==null)) datasets.push({label:'Transactions',data:vals,backgroundColor:'#10b981',borderRadius:3});
+        $('c4-badge').textContent=TAB_LABEL[currentTab]; $('c4-badge').className='badge badge-green';
+    }
+    if (!datasets.length) return;
+    charts['c4'] = new Chart($('c4'), {
+        type:'bar', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:d=>`${d.raw?.toFixed(1)}K txns`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{ticks:{callback:v=>v+'K',font:{size:9}},grid:{color:'#f3f4f6'}}}}
+    });
+}
+
+// ─── CHART 5: Partner / User Metrics ─────────────────────────────────────────
+function renderC5(parser, months, labels) {
+    kill('c5');
+    const MTP_NAMES=['MTP','Monthly Transacting Partners','Active Partners'];
+    const MTU_NAMES=['MTU','Monthly Transacting Users','Active Users','Transacting user (including network)'];
+    const NAP_NAMES=['NAP','New Active Partners','New Partners Acquired'];
+    let datasets = [];
+    const tab = currentTab;
+    if (tab === 'eloka') {
+        const mtu=parser.valsFor(months,...MTU_NAMES);
+        if(mtu.some(v=>v!==null)) datasets.push({label:'Active Users (MTU)',data:mtu,borderColor:'#8b5cf6',backgroundColor:'rgba(139,92,246,.1)',fill:true,tension:.3,pointRadius:3,type:'line'});
+        $('c5-title').textContent='User Metrics';
+    } else {
+        const mtp=parser.valsFor(months,...MTP_NAMES);
+        const nap=parser.valsFor(months,...NAP_NAMES);
+        if(mtp.some(v=>v!==null)) datasets.push({label:'Active Partners (MTP)',data:mtp,borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.1)',fill:true,tension:.3,pointRadius:3,type:'line'});
+        if(nap.some(v=>v!==null)) datasets.push({label:'New Partners',data:nap,backgroundColor:'#93c5fd',borderRadius:3,type:'bar'});
+        $('c5-title').textContent='Partner Metrics';
+    }
+    if (!datasets.length) return;
+    charts['c5'] = new Chart($('c5'), {
+        type:'bar', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{ticks:{font:{size:9}},grid:{color:'#f3f4f6'}}}}
+    });
+}
+
+// ─── CHART 6: Margin Trends ───────────────────────────────────────────────────
+function renderC6(parser, months, labels) {
+    kill('c6');
+    const gm = grossMarginSeries(parser, months);
+    const em = ebitdaMarginSeries(parser, months);
+    let datasets = [];
+    if(gm.some(v=>v!==null)) datasets.push({label:'Gross Margin %',data:gm,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.08)',fill:true,tension:.3,pointRadius:3});
+    if(em.some(v=>v!==null)) datasets.push({label:'EBITDA Margin %',data:em,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.08)',fill:true,tension:.3,pointRadius:3});
+    if (!datasets.length) return;
+    charts['c6'] = new Chart($('c6'), {
+        type:'line', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:d=>`${d.dataset.label}: ${d.raw?.toFixed(1)}%`}}},scales:{x:{grid:{display:false},ticks:{font:{size:9}}},y:{ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'#f3f4f6'}}}}
+    });
+}
+
+// ─── ALL METRICS TABLE ────────────────────────────────────────────────────────
+function renderTable(parser, months, labels) {
+    const cnt = Object.keys(parser.metrics).length;
+    $('metrics-count').textContent = cnt + ' metrics across ' + months.length + ' months';
+    const tbl = $('metrics-table');
+    const MAX_COLS = 12;
+    const showMonths = months.slice(-MAX_COLS);
+    const showLabels = labels.slice(-MAX_COLS);
+    let html = '<thead><tr><th>#</th><th>Metric</th>';
+    showLabels.forEach(l => html += `<th>${l}</th>`);
+    html += '<th>↗</th></tr></thead><tbody>';
+    let prevSection = '';
+    Object.values(parser.metrics).forEach((m, idx) => {
+        if (m.section && m.section !== prevSection) {
+            html += `<tr class="section-row"><td colspan="${showMonths.length+3}">${m.section}</td></tr>`;
+            prevSection = m.section;
+        }
+        const vals = showMonths.map(mk => m.values[mk]);
+        const nonNull = vals.filter(v=>v!=null);
+        const last = nonNull[nonNull.length-1];
+        const prev = nonNull[nonNull.length-2];
+        const trend = last==null?'':prev==null?'':last>prev?'↑':last<prev?'↓':'→';
+        const trendCls = trend==='↑'?'t-pos':trend==='↓'?'t-neg':'';
+        html += `<tr><td>${idx+1}</td><td>${m.name}</td>`;
+        vals.forEach(v => {
+            if (v==null) { html+='<td class="t-null">—</td>'; return; }
+            const cls = v<0?'t-neg':v>0?'':'';
+            const disp = m.unit==='%' ? fmtPct(v) : m.unit==='₹' ? fmtCr(v) : fmtNum(v);
+            html += `<td class="${cls}">${disp}</td>`;
+        });
+        html += `<td class="t-trend ${trendCls}">${trend}</td></tr>`;
+    });
+    html += '</tbody>';
+    tbl.innerHTML = html;
+}
+
+// ─── START ────────────────────────────────────────────────────────────────────
+window.addEventListener('load', loadAllSheets);
+</script>
+</body>
+</html>
